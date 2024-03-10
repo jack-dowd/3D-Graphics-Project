@@ -24,6 +24,8 @@
 #define WINDOW_HEIGHT 400
 #define PI 3.14159265358979323846
 
+bool drawShadows = false;
+
 
 // Data structures
 typedef struct {
@@ -1304,7 +1306,7 @@ void shrinkLineSegment(Vertex *P1, Vertex *P2, double shrinkFactor) {
 
 
 
-
+// various test vals for lighting
 double test1 = 2.0;
 double test2 = 0.05;
 double test3 = 100.0;
@@ -1855,8 +1857,10 @@ void getTriPixels(Pixel **pixels, Vertex p[3], Vertex v[3], Vertex surfaceNormal
                 Vertex lightDir = normalize(calculateDir(deprojected, lightSourcePosition)); // from `a` to light source
                 double cosTheta = dotProduct(normalize(surfaceNormal), lightDir);
                 double intensityOfLightDir = fmax(0.0, cosTheta) + test2;
-                Vertex viewDir = calculateDir(deprojected, camera); // from `a` to pixel 
 
+                // stuff for reflective surfaces
+                /*
+                Vertex viewDir = calculateDir(deprojected, camera); // from `a` to pixel 
                 double shininess = test5;
                 double diffuse = test6;
                 double specular = test7;
@@ -1864,6 +1868,7 @@ void getTriPixels(Pixel **pixels, Vertex p[3], Vertex v[3], Vertex surfaceNormal
                 Vertex reflectDir = reflect(revLightDir, surfaceNormalNormalized);
                 double spec = pow(fmax(dotProduct(viewDir, reflectDir), 0.0), shininess);
                 double intensityOfReflection = (diffuse * cosTheta) + (specular * spec);
+                */
                 
 
                 int darkest_color = 0xFF000000;
@@ -1872,7 +1877,13 @@ void getTriPixels(Pixel **pixels, Vertex p[3], Vertex v[3], Vertex surfaceNormal
                 if(objectAddress != NULL) {
                     
                     double intensityOfShadow = 1.0;
-                    bool isShadowPixel = shadowPixel(deprojected, lightSourcePosition, objectAddress, &intensityOfShadow);
+                    bool isShadowPixel;
+                    if(drawShadows == false) {
+                        isShadowPixel = false;
+                    }
+                    else if(drawShadows = true) {
+                        isShadowPixel = shadowPixel(deprojected, lightSourcePosition, objectAddress, &intensityOfShadow);
+                    }
                     if(isShadowPixel == true) {
                         int colorB = scaleColor(colorA, color, darkest_color, intensityOfShadow);
                         pixels[(int)x][(int)y].color = colorB;
@@ -5854,7 +5865,13 @@ int main(int argc, char* argv[]) {
 
 
 
-
+        // turn shadows on/off
+        if (key_state[SDL_SCANCODE_PERIOD]) {
+            drawShadows = false;
+        }
+        else if (key_state[SDL_SCANCODE_SLASH]) {
+            drawShadows = true;
+        }
 
 
 

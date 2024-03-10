@@ -63,7 +63,7 @@ Matrix matrix_multiply(Matrix a, Matrix b) {
 #define fov ((double)1.1)
 #define aspect ((double)WINDOW_WIDTH/(double)WINDOW_HEIGHT)
 #define near ((double)0.6)
-#define far ((double)10000.0)
+#define far ((double)100.0)
 #define tan_fov ((double)0.61310521328) // tanf(1.1 / 2)
 
 // perspective projection matrix
@@ -445,9 +445,9 @@ void inv_view_transform_vertex(SDL_Point point, double *px, double *py) {
     *py = -((((double)point.y + y_offset) * 2.0 / (double)WINDOW_HEIGHT) - 1.0);
 }
 
-void inv_view_transform_vertex_f(double x, double y, double *px, double *py) {
-    *px = (x * 2.0 / (double)WINDOW_WIDTH) - 1.0;
-    *py = -((y * 2.0 / (double)WINDOW_HEIGHT) - 1.0);
+void inv_view_transform_vertex_f(int x, int y, double *px, double *py) {
+    *px = (((double)x * 2.0) / (double)WINDOW_WIDTH) - 1.0;
+    *py = -((((double)y * 2.0) / (double)WINDOW_HEIGHT) - 1.0);
 }
 
 // line
@@ -477,9 +477,17 @@ Vertex center_of_polygon(Vertex v[], int n) {
         y += v[i].y;
         z += v[i].z;
     }
-    x /= n;
-    y /= n;
-    z /= n;
+    x /= (double)n;
+    y /= (double)n;
+    z /= (double)n;
+    Vertex center = {x, y, z};
+    return center;
+}
+
+Vertex center_of_tri(Vertex v[3]) {
+    double x = (v[0].x + v[1].x + v[2].x) / 3.0;
+    double y = (v[0].y + v[1].y + v[2].y) / 3.0;
+    double z = (v[0].z + v[1].z + v[2].z) / 3.0;
     Vertex center = {x, y, z};
     return center;
 }
@@ -1505,14 +1513,14 @@ double interpolateDepthInLine(double x, double y, Vertex A, Vertex B)
 {
 
     // distances
-    double dTotal = sqrt((B.x - A.x) * (B.x - A.x) + (B.y - A.y) * (B.y - A.y));
-    double dPartial = sqrt((x - A.x) * (x - A.x) + (y - A.y) * (y - A.y));
+    double dTotal = sqrt(((B.x - A.x) * (B.x - A.x)) + ((B.y - A.y) * (B.y - A.y)));
+    double dPartial = sqrt(((x - A.x) * (x - A.x)) + ((y - A.y) * (y - A.y)));
 
     // interpolation factor
     double t = dPartial / dTotal;
 
     // interpolate depth value
-    return A.z + t * (B.z - A.z);
+    return A.z + (t * (B.z - A.z));
 }
 
 
@@ -1522,12 +1530,12 @@ double interpolateDepthInLine(double x, double y, Vertex A, Vertex B)
 
 
 double signedArea(Vertex A, Vertex B, Vertex C) {
-    return 0.5f * ((B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x));
+    return 0.5f * (((B.x - A.x) * (C.y - A.y)) - ((B.y - A.y) * (C.x - A.x)));
 }
 
 void ensureCCWOrder(Vertex *A, Vertex *B, Vertex *C) {
     if (signedArea(*A, *B, *C) < 0) {
-        // wwap A and B
+        // swap A and B
         Vertex temp = *A;
         *A = *B;
         *B = temp;
@@ -1536,7 +1544,7 @@ void ensureCCWOrder(Vertex *A, Vertex *B, Vertex *C) {
 
 // compute barycentric coordinates of p with respect to triangle ABC
 // return 1 if p is inside the triangle, 0 otherwise
-int barycentric(double x, double y, Vertex A, Vertex B, Vertex C, double *u, double *v, double *w) {\
+int barycentric(double x, double y, Vertex A, Vertex B, Vertex C, double *u, double *v, double *w) {
 
     // edges
     Vertex v0 = {B.x - A.x, B.y - A.y, 0};
@@ -1549,26 +1557,31 @@ int barycentric(double x, double y, Vertex A, Vertex B, Vertex C, double *u, dou
     double d11 = dotProduct(v1, v1);
     double d20 = dotProduct(v2, v0);
     double d21 = dotProduct(v2, v1);
-    double denom = d00 * d11 - d01 * d01;
+    double denom = (d00 * d11) - (d01 * d01);
 
-    if (denom == 0.0f) return 0;
+    if (denom == 0.0) return 0;
 
-    *v = (d11 * d20 - d01 * d21) / denom;
-    *w = (d00 * d21 - d01 * d20) / denom;
-    *u = 1.0f - *v - *w;
+    *v = ((d11 * d20) - (d01 * d21)) / denom;
+    *w = ((d00 * d21) - (d01 * d20)) / denom;
+    *u = (1.0 - *v) - *w;
 
     // check if `point` is inside the triangle
-    return (*u >= 0.0f) && (*v >= 0.0f) && (*w >= 0.0f) && (*u <= 1.0f) && (*v <= 1.0f) && (*w <= 1.0f);
+    return (*u >= 0.0) && (*v >= 0.0) && (*w >= 0.0) && (*u <= 1.0) && (*v <= 1.0) && (*w <= 1.0);
 }
 
 // interpolate depth in triangle
 double interpolateDepthInTri(double x, double y, Vertex A, Vertex B, Vertex C) {
     // compute barycentric coordinates
     double u, v, w;
-    barycentric(x, y, A, B, C, &u, &v, &w);
         
     // interpolate depth value using barycentric coordinates
-    double depth_in_tri =  u * A.z + v * B.z + w * C.z;
+    double depth_in_tri;
+    if(barycentric(x, y, A, B, C, &u, &v, &w)) {
+        depth_in_tri =  (u * A.z) + (v * B.z) + (w * C.z);
+    }
+    else {
+        depth_in_tri = 110.0;
+    }
     return depth_in_tri;
 }
 
@@ -1602,7 +1615,7 @@ bool rayTriangleIntersectionTest(Vertex V[2], Vertex P[3]) {
 
     double r = a / b;
     if (r <= 0.0) {
-        return false; // Ray goes away from triangle
+        return false;
     }
 
     Vertex I = {V[0].x + r * dir.x, V[0].y + r * dir.y, V[0].z + r * dir.z};
@@ -1628,8 +1641,9 @@ bool rayTriangleIntersectionTest(Vertex V[2], Vertex P[3]) {
         return false;
     }
 
-    double intersectionDist = sqrt(dotProduct(vertex_subtract(V[0], I), vertex_subtract(V[0], I)));
-    double pixelAtSurfaceDist = sqrt(dotProduct(vertex_subtract(V[1], V[0]), vertex_subtract(V[1], V[0])));
+    Vertex sub_v0_I = vertex_subtract(V[0], I);
+    double intersectionDist = sqrt(dotProduct(sub_v0_I, sub_v0_I));
+    double pixelAtSurfaceDist = sqrt(dotProduct(dir, dir));
     
     if(intersectionDist < pixelAtSurfaceDist) {
         return true;
@@ -1755,7 +1769,7 @@ void getTriPixels(Pixel **pixels, Vertex p[3], Vertex v[3], Vertex surfaceNormal
     Vertex surfaceNormalNormalized = normalize(findNormal(v));
     
     
-    Vertex tempv = center_of_polygon(v, 3);
+    Vertex tempv = center_of_tri(v);
 
     v[0] = vertex_subtract(v[0], tempv);
     v[1] = vertex_subtract(v[1], tempv);
@@ -1794,7 +1808,7 @@ void getTriPixels(Pixel **pixels, Vertex p[3], Vertex v[3], Vertex surfaceNormal
     EdgeList AEL = {.count = 0};
 
     for (int y = (int)minY; y <= (int)maxY; y++) {
-        if ((int)y < 0 || (int)y >= WINDOW_HEIGHT-2) {
+        if ((int)y < 1 || (int)y >= WINDOW_HEIGHT-2) {
             continue;
         }
         updateAEL(y, &AEL, edges);
@@ -1818,7 +1832,7 @@ void getTriPixels(Pixel **pixels, Vertex p[3], Vertex v[3], Vertex surfaceNormal
 
         for (double x = startX; x <= endX; x++) {
 
-            if ((int)x < 0 || (int)x >= WINDOW_WIDTH-2) {
+            if ((int)x < 1 || (int)x >= WINDOW_WIDTH-2) {
                 continue;
             }
             
@@ -1827,21 +1841,21 @@ void getTriPixels(Pixel **pixels, Vertex p[3], Vertex v[3], Vertex surfaceNormal
             double py;
             inv_view_transform_vertex_f(x, y, &px, &py);
             depth = interpolateDepthInTri(px, py, v[0], v[1], v[2]);
-
-            Vertex inv_view = {px, py, depth};
-            Vertex a = vertex_project(inv_view, deprojection);
-            Vertex deprojected = vertex_rotate(a, invRotX);
-            deprojected = vertex_rotate(deprojected, invRotY);
-            deprojected.x += camera.x;
-            deprojected.y += camera.y;
-            deprojected.z += camera.z;
-
-            double distance_from_player = getDistanceBetweenTwoVertices(deprojected, camera);
-            if(distance_from_player > far_distance) {
-                continue;
-            }
-
             if (depth < pixels[(int)x][(int)y].depth) {
+                
+                Vertex inv_view = {px, py, depth};
+                Vertex a = vertex_project(inv_view, deprojection);
+                Vertex deprojected = vertex_rotate(a, invRotX);
+                deprojected = vertex_rotate(deprojected, invRotY);
+                deprojected.x += camera.x;
+                deprojected.y += camera.y;
+                deprojected.z += camera.z;
+
+                double distance_from_player = getDistanceBetweenTwoVertices(deprojected, camera);
+                if(distance_from_player > far_distance) {
+                    continue;
+                }
+
                 pixels[(int)x][(int)y].depth = depth;
                 
                 double lightDist = getDistanceBetweenTwoVertices(deprojected, lightSourcePosition);
@@ -1852,6 +1866,7 @@ void getTriPixels(Pixel **pixels, Vertex p[3], Vertex v[3], Vertex surfaceNormal
                 Vertex lightDir = normalize(calculateDir(deprojected, lightSourcePosition)); // from `a` to light source
                 double cosTheta = dotProduct(normalize(surfaceNormal), lightDir);
                 double intensityOfLightDir = fmax(0.0, cosTheta) + test2;
+                
 
                 // stuff for reflective surfaces
                 /*
@@ -1865,10 +1880,9 @@ void getTriPixels(Pixel **pixels, Vertex p[3], Vertex v[3], Vertex surfaceNormal
                 double intensityOfReflection = (diffuse * cosTheta) + (specular * spec);
                 */
                 
-
+                
                 int darkest_color = 0xFF000000;
                 int colorA = scaleColor(color, color, darkest_color, (intensityOfLightDist*intensityOfCamDist*intensityOfLightDir));
-                
                 if(objectAddress != NULL) {
                     
                     double intensityOfShadow = 1.0;
@@ -1892,6 +1906,7 @@ void getTriPixels(Pixel **pixels, Vertex p[3], Vertex v[3], Vertex surfaceNormal
                 else if(objectAddress == NULL) {
                     pixels[(int)x][(int)y].color = colorA;
                 }
+                
             }        
         }
     }
@@ -1912,9 +1927,9 @@ void getTriPixels(Pixel **pixels, Vertex p[3], Vertex v[3], Vertex surfaceNormal
 
 
 
-double depths[10] = {0.83, 0.81, 0.75, 0.7, 0.65, 0.6, 0.5, 0.4, 0.3, 0.2};
 
 void thickenPixel(Pixel **pixels, int x, int y, double depth, int color) {
+    double depths[10] = {0.83, 0.81, 0.75, 0.7, 0.65, 0.6, 0.5, 0.4, 0.3, 0.2};
     //for(int i = 0; i < 10; i++) {
         //depths[i] = 1.0;
     //}
@@ -2354,7 +2369,7 @@ Square createSquare(Vertex v, double s, int color) {
     return square;
 }
 
-int FLOOR_GRID_DIM = 15;
+int FLOOR_GRID_DIM = 11;
 
 typedef struct {
     Square **squares;
@@ -2878,9 +2893,9 @@ void drawRubiksCubeTris(Pixel **pixels, RubiksCube *rubiksCube, Vertex rubiksCub
                     int color = cube.faces[f].color;
                     
                     Vertex surfacePosition = normal;
-                    surfacePosition.x *= (double)RUBIKS_CUBE_DIM/2;
-                    surfacePosition.y *= (double)RUBIKS_CUBE_DIM/2;
-                    surfacePosition.z *= (double)RUBIKS_CUBE_DIM/2;
+                    surfacePosition.x *= (double)RUBIKS_CUBE_DIM/2.0;
+                    surfacePosition.y *= (double)RUBIKS_CUBE_DIM/2.0;
+                    surfacePosition.z *= (double)RUBIKS_CUBE_DIM/2.0;
 
                     bool is_correct_layer = false;
                     if(turn_cube == true) {
@@ -2946,8 +2961,8 @@ void drawRubiksCubeTris(Pixel **pixels, RubiksCube *rubiksCube, Vertex rubiksCub
 
                         Vertex p_view[3];
                         for(int n = 0; n < 3; n++) {
-                            p_view[n].x = ((p[n].x + 1.0) * (double)WINDOW_WIDTH / 2.0);
-                            p_view[n].y = ((-p[n].y + 1.0) * (double)WINDOW_HEIGHT / 2.0);
+                            p_view[n].x = (((p[n].x + 1.0) * (double)WINDOW_WIDTH) / 2.0);
+                            p_view[n].y = (((-p[n].y + 1.0) * (double)WINDOW_HEIGHT) / 2.0);
                         }
 
                         if(isCounterClockwiseTri(p_view) == 1) {
@@ -3047,8 +3062,8 @@ void drawRubiksCubeLines(Pixel **pixels, RubiksCube *rubiksCube, Vertex rubiksCu
                             // view transform
                             Vertex p_view[2];
                             for(int n = 0; n < 2; n++) {
-                                p_view[n].x = ((p[n].x + 1.0) * (double)WINDOW_WIDTH / 2.0);
-                                p_view[n].y = ((-p[n].y + 1.0) * (double)WINDOW_HEIGHT / 2.0);
+                                p_view[n].x = (((p[n].x + 1.0) * (double)WINDOW_WIDTH) / 2.0);
+                                p_view[n].y = (((-p[n].y + 1.0) * (double)WINDOW_HEIGHT) / 2.0);
                             }
 
                             // add line to `pixels`
@@ -3073,9 +3088,9 @@ void drawFloorGridTris(Pixel **pixels, Square *floorGridSquare, Vertex playerPos
             
         Vertex v[3] = {floorGridSquare->faces[f].tri[0], floorGridSquare->faces[f].tri[1], floorGridSquare->faces[f].tri[2]};
         Vertex avg = {
-            (v[0].x + v[1].x + v[2].x) / 3,
-            (v[0].y + v[1].y + v[2].y) / 3,
-            (v[0].z + v[1].z + v[2].z) / 3
+            (v[0].x + v[1].x + v[2].x) / 3.0,
+            (v[0].y + v[1].y + v[2].y) / 3.0,
+            (v[0].z + v[1].z + v[2].z) / 3.0
         };
         Vertex normal = findNormal(v);
         int color = floorGridSquare->faces[f].color;
@@ -3117,8 +3132,8 @@ void drawFloorGridTris(Pixel **pixels, Square *floorGridSquare, Vertex playerPos
 
             Vertex p_view[3];
             for(int n = 0; n < 3; n++) {
-                p_view[n].x = ((p[n].x + 1.0) * (double)WINDOW_WIDTH / 2.0);
-                p_view[n].y = ((-p[n].y + 1.0) * (double)WINDOW_HEIGHT / 2.0);
+                p_view[n].x = (((p[n].x + 1.0) * (double)WINDOW_WIDTH) / 2.0);
+                p_view[n].y = (((-p[n].y + 1.0) * (double)WINDOW_HEIGHT) / 2.0);
             }
 
             if(isCounterClockwiseTri(p_view) == 1) {
@@ -3173,8 +3188,8 @@ void drawFloorGridLines(Pixel **pixels, FloorGrid *floorGrid, Square *floorGridS
                     // view tranform
                     Vertex p_view[2];
                     for(int n = 0; n < 2; n++) {
-                        p_view[n].x = ((p[n].x + 1.0) * (double)WINDOW_WIDTH / 2.0);
-                        p_view[n].y = ((-p[n].y + 1.0) * (double)WINDOW_HEIGHT / 2.0);
+                        p_view[n].x = (((p[n].x + 1.0) * (double)WINDOW_WIDTH) / 2.0);
+                        p_view[n].y = (((-p[n].y + 1.0) * (double)WINDOW_HEIGHT) / 2.0);
                     }
 
                     // add line to `pixels`
@@ -3187,7 +3202,7 @@ void drawFloorGridLines(Pixel **pixels, FloorGrid *floorGrid, Square *floorGridS
 
 void drawLightSourceCubeTris(Pixel **pixels, double cube_size, Vertex playerPosition, Vertex lightSourcePosition, Matrix rotX, Matrix rotY, Matrix invRotX, Matrix invRotY) {
 
-    Cube cube = createCube((Vertex){0, 0, 0}, cube_size);
+    Cube cube = createCube((Vertex){0.0, 0.0, 0.0}, cube_size);
 
     for(int f = 0; f < 12; f++) {
         
@@ -3197,13 +3212,13 @@ void drawLightSourceCubeTris(Pixel **pixels, double cube_size, Vertex playerPosi
 
         Vertex surfacePosition = normal;
 
-        normal.x *= -1;
-        normal.y *= -1;
-        normal.z *= -1;
+        normal.x *= -1.0;
+        normal.y *= -1.0;
+        normal.z *= -1.0;
 
-        surfacePosition.x *= cube_size * 1/2;
-        surfacePosition.y *= cube_size * 1/2;
-        surfacePosition.z *= cube_size * 1/2;
+        surfacePosition.x *= cube_size * 0.5;
+        surfacePosition.y *= cube_size * 0.5;
+        surfacePosition.z *= cube_size * 0.5;
         surfacePosition.x += lightSourcePosition.x;
         surfacePosition.y += lightSourcePosition.y;
         surfacePosition.z += lightSourcePosition.z;
@@ -3249,8 +3264,8 @@ void drawLightSourceCubeTris(Pixel **pixels, double cube_size, Vertex playerPosi
             // view transform
             Vertex p_view[3];
             for(int n = 0; n < 3; n++) {
-                p_view[n].x = ((p[n].x + 1.0) * (double)WINDOW_WIDTH / 2.0);
-                p_view[n].y = ((-p[n].y + 1.0) * (double)WINDOW_HEIGHT / 2.0);
+                p_view[n].x = (((p[n].x + 1.0) * (double)WINDOW_WIDTH) / 2.0);
+                p_view[n].y = (((-p[n].y + 1.0) * (double)WINDOW_HEIGHT) / 2.0);
             }
 
             if(isCounterClockwiseTri(p_view) == 1) {
@@ -3308,8 +3323,8 @@ void drawLightSourceCubeLines(Pixel **pixels, double cube_size, Vertex playerPos
             // view transform
             Vertex p_view[2];
             for(int n = 0; n < 2; n++) {
-                p_view[n].x = ((p[n].x + 1.0) * (double)WINDOW_WIDTH / 2.0);
-                p_view[n].y = ((-p[n].y + 1.0) * (double)WINDOW_HEIGHT / 2.0);
+                p_view[n].x = (((p[n].x + 1.0) * (double)WINDOW_WIDTH) / 2.0);
+                p_view[n].y = (((-p[n].y + 1.0) * (double)WINDOW_HEIGHT) / 2.0);
             }
 
             // add line to `pixels`
@@ -3402,7 +3417,7 @@ Tetrahedron createTetrahedron() {
 
     // back middle of base
     v[2].x = 0.0;
-    v[2].z = -2.0 * h / 3.0;
+    v[2].z = (-2.0 * h) / 3.0;
     v[2].y = -y;
 
     // apex above the base
@@ -3502,41 +3517,41 @@ Octahedron createOctahedron() {
     double y = 4.0 / 9.0;
 
     // Calculate the height of the equilateral triangle that forms the base
-    double h = 1.73205080757 / 2.0 * edgeLength; //sqrt(3.0) / 2.0 * edgeLength;
+    double h = (1.73205080757 / 2.0) * edgeLength; //sqrt(3.0) / 2.0 * edgeLength;
 
     // Calculate the height of the tetrahedron from its base to the apex
     double H = 0.81649658092 * edgeLength; //sqrt(2.0 / 3.0) * edgeLength;
 
     // front left of base
     v[0].x = -edgeLength / 2.0;
-    v[0].z = -h / 3.0 - (h / 3.0);
+    v[0].z = (-h / 3.0) - (h / 3.0);
     v[0].y = -y;
 
     // front right of base
     v[1].x = edgeLength / 2.0;
-    v[1].z = -h / 3.0 - (h / 3.0);
+    v[1].z = (-h / 3.0) - (h / 3.0);
     v[1].y = -y;
 
     // back middle of base
     v[2].x = 0.0;
-    v[2].z = 2.0 * h / 3.0 - (h / 3.0);
+    v[2].z = ((2.0 * h) / 3.0) - (h / 3.0);
     v[2].y = -y;
 
 
 
     // front left of top
     v[3].x = -edgeLength / 2.0;
-    v[3].z = h / 3.0 - (h / 3.0);
+    v[3].z = (h / 3.0) - (h / 3.0);
     v[3].y = H - y;
 
     // front left of top
     v[4].x = edgeLength / 2.0;
-    v[4].z = h / 3.0 - (h / 3.0);
+    v[4].z = (h / 3.0) - (h / 3.0);
     v[4].y = H - y;
 
     // back middle of top
     v[5].x = 0.0;
-    v[5].z = -2.0 * h / 3.0 - (h / 3.0);
+    v[5].z = ((-2.0 * h) / 3.0) - (h / 3.0);
     v[5].y = H - y;
 
     
@@ -4663,8 +4678,8 @@ void drawPyraminxTris(Pixel **pixels, Pyraminx *pyraminx, Vertex pyraminxPositio
                 // view transform
                 Vertex p_view[3];
                 for(int n = 0; n < 3; n++) {
-                    p_view[n].x = ((p[n].x + 1.0) * (double)WINDOW_WIDTH / 2.0);
-                    p_view[n].y = ((-p[n].y + 1.0) * (double)WINDOW_HEIGHT / 2.0);
+                    p_view[n].x = (((p[n].x + 1.0) * (double)WINDOW_WIDTH) / 2.0);
+                    p_view[n].y = (((-p[n].y + 1.0) * (double)WINDOW_HEIGHT) / 2.0);
                 }
 
                 if(isCounterClockwiseTri(p_view) == 1) {
@@ -4802,8 +4817,8 @@ void drawPyraminxTris(Pixel **pixels, Pyraminx *pyraminx, Vertex pyraminxPositio
                 // view transform
                 Vertex p_view[3];
                 for(int n = 0; n < 3; n++) {
-                    p_view[n].x = ((p[n].x + 1.0) * (double)WINDOW_WIDTH / 2.0);
-                    p_view[n].y = ((-p[n].y + 1.0) * (double)WINDOW_HEIGHT / 2.0);
+                    p_view[n].x = (((p[n].x + 1.0) * (double)WINDOW_WIDTH) / 2.0);
+                    p_view[n].y = (((-p[n].y + 1.0) * (double)WINDOW_HEIGHT) / 2.0);
                 }
 
                 if(isCounterClockwiseTri(p_view) == 1) {
@@ -4956,8 +4971,8 @@ void drawPyraminxLines(Pixel **pixels, Pyraminx *pyraminx, Vertex pyraminxPositi
                     // view transform
                     Vertex p_view[2];
                     for(int n = 0; n < 2; n++) {
-                        p_view[n].x = ((p[n].x + 1.0) * (double)WINDOW_WIDTH / 2.0);
-                        p_view[n].y = ((-p[n].y + 1.0) * (double)WINDOW_HEIGHT / 2.0);
+                        p_view[n].x = (((p[n].x + 1.0) * (double)WINDOW_WIDTH) / 2.0);
+                        p_view[n].y = (((-p[n].y + 1.0) * (double)WINDOW_HEIGHT) / 2.0);
                     }
 
                     // add line to `pixels`
@@ -5084,8 +5099,8 @@ void drawPyraminxLines(Pixel **pixels, Pyraminx *pyraminx, Vertex pyraminxPositi
                     // view transform
                     Vertex p_view[2];
                     for(int n = 0; n < 2; n++) {
-                        p_view[n].x = ((p[n].x + 1.0) * (double)WINDOW_WIDTH / 2.0);
-                        p_view[n].y = ((-p[n].y + 1.0) * (double)WINDOW_HEIGHT / 2.0);
+                        p_view[n].x = (((p[n].x + 1.0) * (double)WINDOW_WIDTH) / 2.0);
+                        p_view[n].y = (((-p[n].y + 1.0) * (double)WINDOW_HEIGHT) / 2.0);
                     }
 
                     // add line to `pixels`
@@ -5456,8 +5471,7 @@ Pyraminx rotatePyraminx(Pyraminx pyraminx, double turn_spd, int axis, int layer,
 
 
 
-const int TARGET_FPS = 30;
-const int TARGET_FRAME_DURATION = 1000 / TARGET_FPS;
+
 
 
 
@@ -5486,7 +5500,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
     if (!renderer) {
         printf("Could not create renderer: %s\n", SDL_GetError());
         SDL_DestroyWindow(window);
@@ -5596,6 +5610,17 @@ int main(int argc, char* argv[]) {
     // loop
     while(running == true) 
     {
+
+    int TARGET_FPS;
+    if(drawShadows == false) {
+        TARGET_FPS = 20;
+    }
+    else if(drawShadows = true) {
+        TARGET_FPS = 10;
+    }
+    int TARGET_FRAME_DURATION = 1000 / TARGET_FPS;
+
+
         Uint64 frameStart = SDL_GetTicks64();
         while (SDL_PollEvent(&event) != 0) {
             if (event.type == SDL_QUIT) {
@@ -5905,240 +5930,241 @@ int main(int argc, char* argv[]) {
 
 
 
-
-        collision_n = 0;
-        for(int i = 0; i < RUBIKS_CUBE_DIM; i++) {
-            for(int j = 0; j < RUBIKS_CUBE_DIM; j++) {
-                for(int k = 0; k < RUBIKS_CUBE_DIM; k++) {
-                    for(int f = 0; f < 12; f++) {
-                        bool is_correct_layer = false;
-                        if(turn_cube == true) {
-                            switch(axis) {
-                                case 0:
-                                    is_correct_layer = (i == layer);
-                                    break;
-                                case 1:
-                                    is_correct_layer = (j == layer);
-                                    break;
-                                case 2:
-                                    is_correct_layer = (k == layer);
-                                    break;
-                                default:
-                                    is_correct_layer = false;
-                                    break;
+        if(drawShadows == true || drawShadows == false) {
+            collision_n = 0;
+            for(int i = 0; i < RUBIKS_CUBE_DIM; i++) {
+                for(int j = 0; j < RUBIKS_CUBE_DIM; j++) {
+                    for(int k = 0; k < RUBIKS_CUBE_DIM; k++) {
+                        for(int f = 0; f < 12; f++) {
+                            bool is_correct_layer = false;
+                            if(turn_cube == true) {
+                                switch(axis) {
+                                    case 0:
+                                        is_correct_layer = (i == layer);
+                                        break;
+                                    case 1:
+                                        is_correct_layer = (j == layer);
+                                        break;
+                                    case 2:
+                                        is_correct_layer = (k == layer);
+                                        break;
+                                    default:
+                                        is_correct_layer = false;
+                                        break;
+                                }
                             }
+
+                            bool is_face_in_turning_layer = isFaceInTurningLayer(rubiksCube.cubies[i][j][k].faces[f].tri, axis, layer, rubiksCubePosition, rubiksCubeSize);
+
+                            if(isOuterFace(rubiksCube.cubies[i][j][k].faces[f].tri, rubiksCubeSize, turn_cube, is_correct_layer, is_face_in_turning_layer, axis, layer, rubiksCube, (int *)NULL) == true) {
+                                collisionTris.tri_address[collision_n] = (Vertex *)rubiksCube.cubies[i][j][k].faces[f].tri;
+
+                                if(f % 2 == 0) {
+                                    // even
+                                    collisionTris.is_quad_tri[collision_n] = true;
+                                }
+                                else {
+                                    // odd
+                                    collisionTris.is_quad_tri[collision_n] = true;
+                                }
+
+                                collisionTris.object_address[collision_n] = (uint32_t *)(&rubiksCube);
+
+                                collisionTris.v[collision_n][0] = vertex_add(rubiksCube.cubies[i][j][k].faces[f].tri[0], rubiksCubePosition);
+                                collisionTris.v[collision_n][1] = vertex_add(rubiksCube.cubies[i][j][k].faces[f].tri[1], rubiksCubePosition);
+                                collisionTris.v[collision_n][2] = vertex_add(rubiksCube.cubies[i][j][k].faces[f].tri[2], rubiksCubePosition);
+                                collision_n++;
+                            }   
                         }
-
-                        bool is_face_in_turning_layer = isFaceInTurningLayer(rubiksCube.cubies[i][j][k].faces[f].tri, axis, layer, rubiksCubePosition, rubiksCubeSize);
-
-                        if(isOuterFace(rubiksCube.cubies[i][j][k].faces[f].tri, rubiksCubeSize, turn_cube, is_correct_layer, is_face_in_turning_layer, axis, layer, rubiksCube, (int *)NULL) == true) {
-                            collisionTris.tri_address[collision_n] = (Vertex *)rubiksCube.cubies[i][j][k].faces[f].tri;
-
-                            if(f % 2 == 0) {
-                                // even
-                                collisionTris.is_quad_tri[collision_n] = true;
-                            }
-                            else {
-                                // odd
-                                collisionTris.is_quad_tri[collision_n] = true;
-                            }
-
-                            collisionTris.object_address[collision_n] = (uint32_t *)(&rubiksCube);
-
-                            collisionTris.v[collision_n][0] = vertex_add(rubiksCube.cubies[i][j][k].faces[f].tri[0], rubiksCubePosition);
-                            collisionTris.v[collision_n][1] = vertex_add(rubiksCube.cubies[i][j][k].faces[f].tri[1], rubiksCubePosition);
-                            collisionTris.v[collision_n][2] = vertex_add(rubiksCube.cubies[i][j][k].faces[f].tri[2], rubiksCubePosition);
-                            collision_n++;
-                        }   
                     }
                 }
             }
-        }
 
-        for(int i = 0; i < TOTAL_TETRAHEDRA; i++) {
-            for(int f = 0; f < 4; f++) {
-                bool is_correct_layer = false;
-                if(turn_pyraminx == true) 
-                {
-                    if(axis == 0) 
+            for(int i = 0; i < TOTAL_TETRAHEDRA; i++) {
+                for(int f = 0; f < 4; f++) {
+                    bool is_correct_layer = false;
+                    if(turn_pyraminx == true) 
                     {
-                        if(layer == 0) {
-                            if(i == 0 || i == 1 || i == 2 || i == 3 || i == 4 || i == 5) {
-                                is_correct_layer = true;
+                        if(axis == 0) 
+                        {
+                            if(layer == 0) {
+                                if(i == 0 || i == 1 || i == 2 || i == 3 || i == 4 || i == 5) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 1) {
+                                if(i == 6 || i == 7 || i == 8) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 2) {
+                                if(i == 9) {
+                                    is_correct_layer = true;
+                                }
                             }
                         }
-                        else if(layer == 1) {
-                            if(i == 6 || i == 7 || i == 8) {
-                                is_correct_layer = true;
+
+                        else if(axis == 1) 
+                        {
+                            if(layer == 0) {
+                                if(i == 0 || i == 1 || i == 2 || i == 6 || i == 7 || i == 9) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 1) {
+                                if(i == 3 || i == 4 || i == 8) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 2) {
+                                if(i == 5) {
+                                    is_correct_layer = true;
+                                }
                             }
                         }
-                        else if(layer == 2) {
-                            if(i == 9) {
-                                is_correct_layer = true;
+                        else if(axis == 2) 
+                        {
+                            if(layer == 0) {
+                                if(i == 0 || i == 3 || i == 5 || i == 6 || i == 8 || i == 9) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 1) {
+                                if(i == 1 || i == 4 || i == 7) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 2) {
+                                if(i == 2) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                        }
+
+                        else if(axis == 3) 
+                        {
+                            if(layer == 0) {
+                                if(i == 2 || i == 4 || i == 5 || i == 7 || i == 8 || i == 9) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 1) {
+                                if(i == 1 || i == 3 || i == 6) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 2) {
+                                if(i == 0) {
+                                    is_correct_layer = true;
+                                }
                             }
                         }
                     }
-
-                    else if(axis == 1) 
-                    {
-                        if(layer == 0) {
-                            if(i == 0 || i == 1 || i == 2 || i == 6 || i == 7 || i == 9) {
-                                is_correct_layer = true;
-                            }
-                        }
-                        else if(layer == 1) {
-                            if(i == 3 || i == 4 || i == 8) {
-                                is_correct_layer = true;
-                            }
-                        }
-                        else if(layer == 2) {
-                            if(i == 5) {
-                                is_correct_layer = true;
-                            }
-                        }
-                    }
-                    else if(axis == 2) 
-                    {
-                        if(layer == 0) {
-                            if(i == 0 || i == 3 || i == 5 || i == 6 || i == 8 || i == 9) {
-                                is_correct_layer = true;
-                            }
-                        }
-                        else if(layer == 1) {
-                            if(i == 1 || i == 4 || i == 7) {
-                                is_correct_layer = true;
-                            }
-                        }
-                        else if(layer == 2) {
-                            if(i == 2) {
-                                is_correct_layer = true;
-                            }
-                        }
-                    }
-
-                    else if(axis == 3) 
-                    {
-                        if(layer == 0) {
-                            if(i == 2 || i == 4 || i == 5 || i == 7 || i == 8 || i == 9) {
-                                is_correct_layer = true;
-                            }
-                        }
-                        else if(layer == 1) {
-                            if(i == 1 || i == 3 || i == 6) {
-                                is_correct_layer = true;
-                            }
-                        }
-                        else if(layer == 2) {
-                            if(i == 0) {
-                                is_correct_layer = true;
-                            }
-                        }
+                    if(isOuterPyraminxFace(pyraminx.tetrahedra[i].faces[f].tri, turn_pyraminx, is_correct_layer, axis, layer, pyraminx, (int *)NULL)) {
+                        collisionTris.tri_address[collision_n] = (Vertex *)pyraminx.tetrahedra[i].faces[f].tri;
+                        collisionTris.is_quad_tri[collision_n] = false;
+                        collisionTris.object_address[collision_n] = (uint32_t *)(&pyraminx);
+                        collisionTris.v[collision_n][0] = vertex_add(pyraminx.tetrahedra[i].faces[f].tri[0], pyraminxPosition);
+                        collisionTris.v[collision_n][1] = vertex_add(pyraminx.tetrahedra[i].faces[f].tri[1], pyraminxPosition);
+                        collisionTris.v[collision_n][2] = vertex_add(pyraminx.tetrahedra[i].faces[f].tri[2], pyraminxPosition);
+                        collision_n++;
+                        //collision[collision_n] = pyraminx.tetrahedra[i].faces[f].tri;
+                        /*Vertex temp = collision[collision_n][1];
+                        collision[collision_n][1] = collision[collision_n][2];
+                        collision[collision_n][2] = temp;*/
+                        //collision_n++;
                     }
                 }
-                if(isOuterPyraminxFace(pyraminx.tetrahedra[i].faces[f].tri, turn_pyraminx, is_correct_layer, axis, layer, pyraminx, (int *)NULL)) {
-                    collisionTris.tri_address[collision_n] = (Vertex *)pyraminx.tetrahedra[i].faces[f].tri;
-                    collisionTris.is_quad_tri[collision_n] = false;
-                    collisionTris.object_address[collision_n] = (uint32_t *)(&pyraminx);
-                    collisionTris.v[collision_n][0] = vertex_add(pyraminx.tetrahedra[i].faces[f].tri[0], pyraminxPosition);
-                    collisionTris.v[collision_n][1] = vertex_add(pyraminx.tetrahedra[i].faces[f].tri[1], pyraminxPosition);
-                    collisionTris.v[collision_n][2] = vertex_add(pyraminx.tetrahedra[i].faces[f].tri[2], pyraminxPosition);
+            }
+
+            for(int i = 0; i < TOTAL_OCTAHEDRA; i++) {
+                for(int f = 0; f < 8; f++) {
+                    bool is_correct_layer = false;
+                    if(turn_pyraminx == true) 
+                    {
+                        if(axis == 0) 
+                        {
+                            if(layer == 0) {
+                                if(i == 0 || i == 1 || i == 2) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 1) {
+                                if(i == 3) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                        }
+
+                        else if(axis == 1) 
+                        {
+                            if(layer == 0) {
+                                if(i == 0 || i == 1 || i == 3) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 1) {
+                                if(i == 2) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                        }
+
+                        else if(axis == 2) 
+                        {
+                            if(layer == 0) {
+                                if(i == 0 || i == 2 || i == 3) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 1) {
+                                if(i == 1) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                        }
+
+                        else if(axis == 3) 
+                        {
+                            if(layer == 0) {
+                                if(i == 1 || i == 2 || i == 3) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                            else if(layer == 1) {
+                                if(i == 0) {
+                                    is_correct_layer = true;
+                                }
+                            }
+                        }
+                    }
+                    if(isOuterPyraminxFace(pyraminx.octahedra[i].faces[f].tri, turn_pyraminx, is_correct_layer, axis, layer, pyraminx, (int *)NULL)) {
+                        collisionTris.tri_address[collision_n] = (Vertex *)pyraminx.octahedra[i].faces[f].tri;
+                        collisionTris.is_quad_tri[collision_n] = false;
+                        collisionTris.object_address[collision_n] = (uint32_t *)(&pyraminx);
+                        collisionTris.v[collision_n][0] = vertex_add(pyraminx.octahedra[i].faces[f].tri[0], pyraminxPosition);
+                        collisionTris.v[collision_n][1] = vertex_add(pyraminx.octahedra[i].faces[f].tri[2], pyraminxPosition);
+                        collisionTris.v[collision_n][2] = vertex_add(pyraminx.octahedra[i].faces[f].tri[1], pyraminxPosition);
+                        collision_n++;
+                    }
+                }
+            }
+
+            if(draw_floor_grid == true) {
+                for(int f = 0; f < 2; f++) {
+                    collisionTris.tri_address[collision_n] = (Vertex *)floorGridSquare.faces[f].tri;
+                    if(f % 2 == 0) {
+                        collisionTris.is_quad_tri[collision_n] = true;
+                    }
+                    else {
+                        collisionTris.is_quad_tri[collision_n] = true;
+                    }
+                    collisionTris.object_address[collision_n] = (uint32_t *)(&floorGridSquare);
+                    collisionTris.v[collision_n][0] = floorGridSquare.faces[f].tri[0];
+                    collisionTris.v[collision_n][1] = floorGridSquare.faces[f].tri[1];
+                    collisionTris.v[collision_n][2] = floorGridSquare.faces[f].tri[2];
                     collision_n++;
-                    //collision[collision_n] = pyraminx.tetrahedra[i].faces[f].tri;
-                    /*Vertex temp = collision[collision_n][1];
-                    collision[collision_n][1] = collision[collision_n][2];
-                    collision[collision_n][2] = temp;*/
-                    //collision_n++;
                 }
-            }
-        }
-
-        for(int i = 0; i < TOTAL_OCTAHEDRA; i++) {
-            for(int f = 0; f < 8; f++) {
-                bool is_correct_layer = false;
-                if(turn_pyraminx == true) 
-                {
-                    if(axis == 0) 
-                    {
-                        if(layer == 0) {
-                            if(i == 0 || i == 1 || i == 2) {
-                                is_correct_layer = true;
-                            }
-                        }
-                        else if(layer == 1) {
-                            if(i == 3) {
-                                is_correct_layer = true;
-                            }
-                        }
-                    }
-
-                    else if(axis == 1) 
-                    {
-                        if(layer == 0) {
-                            if(i == 0 || i == 1 || i == 3) {
-                                is_correct_layer = true;
-                            }
-                        }
-                        else if(layer == 1) {
-                            if(i == 2) {
-                                is_correct_layer = true;
-                            }
-                        }
-                    }
-
-                    else if(axis == 2) 
-                    {
-                        if(layer == 0) {
-                            if(i == 0 || i == 2 || i == 3) {
-                                is_correct_layer = true;
-                            }
-                        }
-                        else if(layer == 1) {
-                            if(i == 1) {
-                                is_correct_layer = true;
-                            }
-                        }
-                    }
-
-                    else if(axis == 3) 
-                    {
-                        if(layer == 0) {
-                            if(i == 1 || i == 2 || i == 3) {
-                                is_correct_layer = true;
-                            }
-                        }
-                        else if(layer == 1) {
-                            if(i == 0) {
-                                is_correct_layer = true;
-                            }
-                        }
-                    }
-                }
-                if(isOuterPyraminxFace(pyraminx.octahedra[i].faces[f].tri, turn_pyraminx, is_correct_layer, axis, layer, pyraminx, (int *)NULL)) {
-                    collisionTris.tri_address[collision_n] = (Vertex *)pyraminx.octahedra[i].faces[f].tri;
-                    collisionTris.is_quad_tri[collision_n] = false;
-                    collisionTris.object_address[collision_n] = (uint32_t *)(&pyraminx);
-                    collisionTris.v[collision_n][0] = vertex_add(pyraminx.octahedra[i].faces[f].tri[0], pyraminxPosition);
-                    collisionTris.v[collision_n][1] = vertex_add(pyraminx.octahedra[i].faces[f].tri[2], pyraminxPosition);
-                    collisionTris.v[collision_n][2] = vertex_add(pyraminx.octahedra[i].faces[f].tri[1], pyraminxPosition);
-                    collision_n++;
-                }
-            }
-        }
-
-        if(draw_floor_grid == true) {
-            for(int f = 0; f < 2; f++) {
-                collisionTris.tri_address[collision_n] = (Vertex *)floorGridSquare.faces[f].tri;
-                if(f % 2 == 0) {
-                    collisionTris.is_quad_tri[collision_n] = true;
-                }
-                else {
-                    collisionTris.is_quad_tri[collision_n] = true;
-                }
-                collisionTris.object_address[collision_n] = (uint32_t *)(&floorGridSquare);
-                collisionTris.v[collision_n][0] = floorGridSquare.faces[f].tri[0];
-                collisionTris.v[collision_n][1] = floorGridSquare.faces[f].tri[1];
-                collisionTris.v[collision_n][2] = floorGridSquare.faces[f].tri[2];
-                collision_n++;
             }
         }
 
@@ -6170,7 +6196,7 @@ int main(int argc, char* argv[]) {
         }
         // floor grid tris
         if(draw_floor_grid) {
-            drawFloorGridTris(pixels, &floorGridSquare, playerPosition, lightSourcePosition, rotX, rotY, invRotX, invRotY);
+           drawFloorGridTris(pixels, &floorGridSquare, playerPosition, lightSourcePosition, rotX, rotY, invRotX, invRotY);
         }
 
 
@@ -6211,6 +6237,11 @@ int main(int argc, char* argv[]) {
         if (frameDuration < TARGET_FRAME_DURATION) {
             SDL_Delay(TARGET_FRAME_DURATION - frameDuration);
         }
+
+        Uint64 newFrameEnd = SDL_GetTicks64();
+        Uint64 newFrameDuration = newFrameEnd - frameStart;
+        double fps = 1000.0 / newFrameDuration;
+        //printf("FPS: %d\n", (int)fps);
     }
 
     for(int i = 0; i < WINDOW_WIDTH; i++) {

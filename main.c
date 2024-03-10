@@ -1508,11 +1508,6 @@ double interpolateDepthInLine(double x, double y, Vertex A, Vertex B)
     double dTotal = sqrt((B.x - A.x) * (B.x - A.x) + (B.y - A.y) * (B.y - A.y));
     double dPartial = sqrt((x - A.x) * (x - A.x) + (y - A.y) * (y - A.y));
 
-    if(dTotal == 0) {
-        printf("help\n");
-        return .5;
-    }
-
     // interpolation factor
     double t = dPartial / dTotal;
 
@@ -3873,12 +3868,12 @@ Pyraminx createPyraminx(Pyraminx pyraminx) {
     pyraminx.axis_vectors[6] = findNormal((Vertex [3]){tips[0], tips[3], tips[2]});
     pyraminx.axis_vectors[7] = findNormal((Vertex [3]){tips[2], tips[3], tips[1]});
 
-
+    /*
     printf("%f, %f, %f\n", pyraminx.tetrahedra[0].vertices[0].x, pyraminx.tetrahedra[0].vertices[0].y, pyraminx.tetrahedra[0].vertices[0].z);
     printf("%f, %f, %f\n", pyraminx.tetrahedra[2].vertices[1].x, pyraminx.tetrahedra[2].vertices[1].y, pyraminx.tetrahedra[2].vertices[1].z);
     printf("%f, %f, %f\n", pyraminx.tetrahedra[5].vertices[2].x, pyraminx.tetrahedra[5].vertices[2].y, pyraminx.tetrahedra[5].vertices[2].z);
     printf("%f, %f, %f\n", pyraminx.tetrahedra[9].vertices[3].x, pyraminx.tetrahedra[9].vertices[3].y, pyraminx.tetrahedra[9].vertices[3].z);
-
+    */
 
 
 

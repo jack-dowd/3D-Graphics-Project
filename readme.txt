@@ -18,7 +18,7 @@ Move Player:
 	S - Right
 	D - Back
 	Space Bar - Up
-	Left Shift - Down
+	Tab - Down
 
 Turn Camera:
 	[Arrow Keys]

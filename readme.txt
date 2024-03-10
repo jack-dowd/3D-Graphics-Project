@@ -43,6 +43,10 @@ Floor Grid:
 	9 - Remove (significantly better performance)
 	0 - Add
 
+Shadows:
+	. - Off
+	/ - On
+
 Move Light Source:
 	= - Forward
 	[ - Left

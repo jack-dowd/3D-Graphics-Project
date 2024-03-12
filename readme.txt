@@ -1,5 +1,5 @@
 * Compile with the command:
-	gcc main.c -o main -lm -lSDL2 -O3
+	gcc main.c -o main -lm -lSDL2 -Ofast
 
 * Run with the command:
 	./main

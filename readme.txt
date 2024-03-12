@@ -6,7 +6,7 @@
 
 * Change window size by changing WINDOW_WIDTH and WINDOW_HEIGHT in main.c
 
-* If you want to have an n-layered cube, change RUBIKS_CUBE_DIM in main.c
+* If you want to have an N-dimensional cube, change RUBIKS_CUBE_DIM in main.c
 	(However, the key inputs are only coded to accommodate a 4x4 cube at most)
 
 

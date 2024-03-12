@@ -7,7 +7,7 @@
 * Change window size by changing WINDOW_WIDTH and WINDOW_HEIGHT in main.c
 
 * If you want to have an n-layered cube, change RUBIKS_CUBE_DIM in main.c
-	(However, you can only turn up to 4 layers, so only 2x2 to 4x4 are fully-functional)
+	(However, the key inputs are only coded to accommodate a 4x4 cube at most)
 
 
 * Inputs:
